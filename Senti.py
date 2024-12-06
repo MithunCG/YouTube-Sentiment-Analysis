@@ -20,6 +20,11 @@ def extract_video_id(youtube_link):
     else:
         return None
 
+from transformers import AutoTokenizer
+
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
+
 def analyze_sentiment(csv_file):
     # Read in the YouTube comments from the CSV file
     comments = []
@@ -27,19 +32,30 @@ def analyze_sentiment(csv_file):
     with open(csv_file, 'r', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            comment = row['Comment']
-            sentiment = classifier(comment)[0]  # Get sentiment from RoBERTa
-            sentiment_score = sentiment['label']
+            comment = row.get('Comment', '')  # Safely get the 'Comment' field
             
-            # Classify the sentiment as Positive, Negative, or Neutral based on the model output
-            if sentiment_score == 'LABEL_2':  # Positive label
-                sentiment_labels.append('Positive')
-            elif sentiment_score == 'LABEL_0':  # Negative label
-                sentiment_labels.append('Negative')
-            else:  # Neutral
-                sentiment_labels.append('Neutral')
-
-            comments.append(comment)
+            # Ensure the comment is a string and not empty
+            if not isinstance(comment, str) or not comment.strip():
+                print(f"Skipping invalid comment: {comment}")
+                continue
+            
+            # Add try-except block to handle errors during sentiment classification
+            try:
+                sentiment = classifier(comment.strip())[0]  # Get sentiment from RoBERTa
+                sentiment_score = sentiment['label']
+                
+                # Classify the sentiment as Positive, Negative, or Neutral based on the model output
+                if sentiment_score == 'LABEL_2':  # Positive label
+                    sentiment_labels.append('Positive')
+                elif sentiment_score == 'LABEL_0':  # Negative label
+                    sentiment_labels.append('Negative')
+                else:  # Neutral
+                    sentiment_labels.append('Neutral')
+                
+                comments.append(comment)
+            except Exception as e:
+                print(f"Error processing comment: {comment} - {str(e)}")
+                continue
 
     # Create a DataFrame with the comments and their sentiment labels
     sentiment_df = pd.DataFrame({
@@ -59,6 +75,8 @@ def analyze_sentiment(csv_file):
     }
 
     return results
+
+
 
 def bar_chart(csv_file: str) -> None:
     # Call analyze_sentiment function to get the results
